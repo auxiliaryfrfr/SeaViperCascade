@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+apps/server/data/
+apps/server/recovery-kits/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/settings.json
