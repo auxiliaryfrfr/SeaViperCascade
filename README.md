@@ -13,7 +13,7 @@ A local password manager and password-changer automation tool.
 - Account CRUD with encrypted fields.
 - Password generator with configurable policy defaults.
 - Playwright automation engine with queue-based runs, manual fallback for CAPTCHA/2FA, and optional password rotation.
-- Browser credential CSV import xwith platform auto-mapping.
+- Browser credential CSV import with platform auto-mapping.
 - Mobile network sync with single-use QR/session token URLs.
 - Emergency Recovery Kit export and restore import.
 
@@ -25,6 +25,7 @@ Monorepo layout:
 apps/
 	server/   Fastify + SQLite + Crypto + Playwright + PDFKit
 	web/      React + Vite dashboard and mobile view
+	desktop/  Electron wrapper for local packaged runtime
 ```
 
 ### Backend Stack
@@ -41,6 +42,11 @@ apps/
 - Themed split-pane dashboard
 - QRCode rendering for mobile sync
 - Fontsource typography bundle for a distinctive visual style
+
+### Desktop Stack
+
+- Electron shell for bundled local desktop runtime
+- electron-builder packaging (NSIS installer target on Windows)
 
 ## Security Model
 
@@ -62,6 +68,7 @@ apps/
 - Applies preferences as per user settings.
 - Supports optional password rotation with secure generation.
 - If CAPTCHA/2FA/manual flow is detected, account is marked `manual_required`, and the page remains open for user completion.
+- Includes profile packs for common providers (Google, Microsoft, Meta) with platform-specific selector hints and safe generic fallbacks.
 
 ## Mobile Sync
 
@@ -115,13 +122,55 @@ npm run start
 
 - Production app URL: `http://localhost:8787`
 
+### 5. Run desktop shell (Electron)
+
+```bash
+npm run desktop:dev
+```
+
+The desktop shell starts the local server and opens the app in a desktop window.
+
+### 6. Build desktop artifacts
+
+```bash
+npm run desktop:build
+```
+
+For an installer package:
+
+```bash
+npm run desktop:dist
+```
+
 ## Verified Commands
 
 - `npm install`
 - `npm run lint`
 - `npm run build`
+- `npm run test`
 
-All three commands pass in the current repository state.
+All commands above pass in the current repository state.
+
+## Tests
+
+- Integration tests: `apps/server/tests/api.integration.test.ts`
+- Crypto invariants tests: `apps/server/tests/crypto.invariants.test.ts`
+
+Run with:
+
+```bash
+npm run test
+```
+
+## CI And Release
+
+- CI workflow (lint, build, tests): `.github/workflows/ci.yml`
+- Desktop release workflow: `.github/workflows/release-desktop.yml`
+
+Optional signing secrets for desktop release:
+
+- `CSC_LINK`
+- `CSC_KEY_PASSWORD`
 
 ## Important Operational Notes
 
@@ -130,9 +179,9 @@ All three commands pass in the current repository state.
 - If you lose both master password and recovery code, vault decryption is not possible by design.
 - Automation selectors vary by platform over time; manual fallback is expected for heavily protected or changed flows.
 
-## Next Steps
+## Notes
 
-- Add Electron or Tauri desktop packaging and installer pipeline.
-- Add code signing and release artifacts in GitHub Actions.
-- Add integration tests for API endpoints and cryptographic invariants.
-- Add platform-specific automation profile packs with maintained selectors.
+- Browser password managers do not expose direct local vault APIs to third-party apps, so CSV export/import is the supported interoperability path.
+- Desktop release can run unsigned by default; add signing secrets when you are ready to distribute trusted signed artifacts.
+
+> **Contributing:** Please read the [Commit Convention](.github/COMMIT_CONVENTION.md) before pushing changes.
