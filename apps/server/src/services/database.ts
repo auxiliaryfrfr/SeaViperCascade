@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS accounts (
 
 db.exec(createTablesSql);
 
+export function closeDatabase(): void {
+  if (db.open) {
+    db.close();
+  }
+}
+
 export function getMetadata(key: string): string | undefined {
   const row = db.prepare("SELECT value FROM metadata WHERE key = ?").get(key) as
     | { value: string }
@@ -94,7 +100,7 @@ export function getSettings(): AppSettings {
     const defaults: AppSettings = {
       themeMode: "dark",
       customTheme: null,
-      logoutAllDevicesDefault: true,
+      logoutAllDevicesDefault: false,
       rememberMeDefault: true,
       passwordDefaults: normalizePasswordDefaults({
         length: 16,

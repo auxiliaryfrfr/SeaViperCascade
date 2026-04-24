@@ -28,7 +28,7 @@ import {
 import { readSettings, updateSettings } from "./services/settingsService";
 import { getAutomationJob, startAutomationJob } from "./services/automationService";
 import { createRecoveryText, generateRecoveryKit, restoreFromRecoveryBlob } from "./services/recoveryService";
-import { getInstallId, isVaultInitialized } from "./services/database";
+import { closeDatabase, getInstallId, isVaultInitialized } from "./services/database";
 import type { SessionContext } from "./types";
 
 class ApiError extends Error {
@@ -63,6 +63,10 @@ function requireSession(request: FastifyRequest): SessionContext {
 }
 
 const app = Fastify({ logger: false });
+
+app.addHook("onClose", async () => {
+  closeDatabase();
+});
 
 app.register(cors, {
   origin: (_origin, callback) => {
@@ -460,12 +464,32 @@ if (webBuilt) {
   });
 }
 
-void app
-  .listen({ host: HOST, port: PORT })
-  .then(() => {
-    console.log(`SVC backend running on http://${HOST}:${PORT}`);
-  })
-  .catch((error) => {
+let listenPromise: Promise<string> | null = null;
+
+export async function startServer(): Promise<string> {
+  if (listenPromise) {
+    return listenPromise;
+  }
+
+  listenPromise = app
+    .listen({ host: HOST, port: PORT })
+    .then((address) => {
+      console.log(`SVC backend running on ${address}`);
+      return address;
+    })
+    .catch((error) => {
+      listenPromise = null;
+      throw error;
+    });
+
+  return listenPromise;
+}
+
+if (process.env.SVC_DISABLE_AUTOSTART !== "1") {
+  void startServer().catch((error) => {
     console.error("Failed to start SVC backend:", error);
     process.exit(1);
   });
+}
+
+export { app };
