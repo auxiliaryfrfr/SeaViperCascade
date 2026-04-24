@@ -5,13 +5,18 @@
   "description": "SVC - SeaViperCascade local password manager and automation engine",
   "workspaces": [
     "apps/server",
-    "apps/web"
+    "apps/web",
+    "apps/desktop"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace @svc/server\" \"npm run dev --workspace @svc/web\"",
     "build": "npm run build --workspace @svc/server && npm run build --workspace @svc/web",
     "start": "npm run start --workspace @svc/server",
-    "lint": "npm run lint --workspace @svc/server && npm run lint --workspace @svc/web"
+    "lint": "npm run lint --workspace @svc/server && npm run lint --workspace @svc/web",
+    "test": "npm run test --workspace @svc/server",
+    "desktop:dev": "npm run dev --workspace @svc/desktop",
+    "desktop:build": "npm run build --workspace @svc/desktop",
+    "desktop:dist": "npm run dist --workspace @svc/desktop"
   },
   "devDependencies": {
     "concurrently": "^9.0.1"
