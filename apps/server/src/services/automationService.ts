@@ -2,6 +2,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import { generateSecurePassword, normalizePasswordDefaults } from "../lib/password";
 import type { AutomationJob, PasswordDefaults, SessionContext } from "../types";
 import { getVaultAccount, listVaultAccounts, setVaultPassword } from "./accountService";
+import { resolveAutomationProfile, type AutomationProfile } from "../automation/profiles";
 import { listPlatforms } from "./platformService";
 import { readSettings } from "./settingsService";
 
@@ -14,6 +15,55 @@ interface StartAutomationInput {
 }
 
 const jobs = new Map<string, AutomationJob>();
+
+const DEFAULT_USERNAME_SELECTORS = [
+  'input[type="email"]',
+  'input[name*="email" i]',
+  'input[name*="user" i]',
+  'input[id*="user" i]',
+  'input[type="text"]'
+];
+
+const DEFAULT_PASSWORD_SELECTORS = [
+  'input[autocomplete="current-password"]',
+  'input[type="password"]'
+];
+
+const DEFAULT_LOGIN_LABELS = ["Sign in", "Log in", "Continue", "Next"];
+const DEFAULT_REMEMBER_ME_LABELS = ["remember me", "keep me signed in", "stay signed in"];
+const DEFAULT_LOGOUT_ALL_LABELS = [
+  "logout of all devices",
+  "log out all sessions",
+  "sign out everywhere"
+];
+const DEFAULT_SECURITY_PAGE_LABELS = ["security", "password", "change password", "account settings"];
+const DEFAULT_PASSWORD_SUBMIT_LABELS = ["save", "update password", "change password", "submit"];
+
+const DEFAULT_CURRENT_PASSWORD_SELECTORS = [
+  'input[autocomplete="current-password"]',
+  'input[type="password"][name*="current" i]',
+  'input[type="password"][id*="current" i]'
+];
+
+const DEFAULT_NEW_PASSWORD_SELECTORS = [
+  'input[autocomplete="new-password"]',
+  'input[type="password"][name*="new" i]',
+  'input[type="password"][id*="new" i]'
+];
+
+const DEFAULT_CONFIRM_PASSWORD_SELECTORS = [
+  'input[type="password"][name*="confirm" i]',
+  'input[type="password"][id*="confirm" i]',
+  'input[type="password"][name*="repeat" i]'
+];
+
+function mergeSelectorList(profileList: string[] | undefined, defaults: string[]): string[] {
+  if (!profileList?.length) {
+    return defaults;
+  }
+
+  return [...profileList, ...defaults];
+}
 
 function toRegexList(labels: string[]): RegExp[] {
   return labels.map((label) => new RegExp(`^\\s*${label}\\s*$`, "i"));
@@ -75,42 +125,39 @@ async function hasHumanChallenge(page: Page): Promise<boolean> {
   );
 }
 
-async function attemptPasswordChange(page: Page, currentPassword: string, nextPassword: string): Promise<boolean> {
-  await tryClickButtons(page, [
-    /security/i,
-    /password/i,
-    /change password/i,
-    /account settings/i
-  ]);
+async function attemptPasswordChange(
+  page: Page,
+  currentPassword: string,
+  nextPassword: string,
+  profile: AutomationProfile | null
+): Promise<boolean> {
+  const securityLabels = mergeSelectorList(profile?.securityPageLabels, DEFAULT_SECURITY_PAGE_LABELS);
+  await tryClickButtons(page, toRegexList(securityLabels));
 
-  const currentFound = await tryFillFirst(page, [
-    'input[autocomplete="current-password"]',
-    'input[type="password"][name*="current" i]',
-    'input[type="password"][id*="current" i]'
-  ], currentPassword);
+  const currentFound = await tryFillFirst(
+    page,
+    mergeSelectorList(profile?.currentPasswordSelectors, DEFAULT_CURRENT_PASSWORD_SELECTORS),
+    currentPassword
+  );
 
-  const nextFound = await tryFillFirst(page, [
-    'input[autocomplete="new-password"]',
-    'input[type="password"][name*="new" i]',
-    'input[type="password"][id*="new" i]'
-  ], nextPassword);
+  const nextFound = await tryFillFirst(
+    page,
+    mergeSelectorList(profile?.newPasswordSelectors, DEFAULT_NEW_PASSWORD_SELECTORS),
+    nextPassword
+  );
 
-  const confirmFound = await tryFillFirst(page, [
-    'input[type="password"][name*="confirm" i]',
-    'input[type="password"][id*="confirm" i]',
-    'input[type="password"][name*="repeat" i]'
-  ], nextPassword);
+  const confirmFound = await tryFillFirst(
+    page,
+    mergeSelectorList(profile?.confirmPasswordSelectors, DEFAULT_CONFIRM_PASSWORD_SELECTORS),
+    nextPassword
+  );
 
   if (!nextFound || !confirmFound || !currentFound) {
     return false;
   }
 
-  await tryClickButtons(page, [
-    /save/i,
-    /update password/i,
-    /change password/i,
-    /submit/i
-  ]);
+  const submitLabels = mergeSelectorList(profile?.passwordSubmitLabels, DEFAULT_PASSWORD_SUBMIT_LABELS);
+  await tryClickButtons(page, toRegexList(submitLabels));
 
   await page.waitForTimeout(2500);
 
@@ -131,6 +178,7 @@ async function processAccount(
   const account = getVaultAccount(session, accountId);
   const platforms = listPlatforms();
   const platform = platforms.find((item) => item.id === account.platformId);
+  const profile = resolveAutomationProfile([account.loginUrl, platform?.baseUrl]);
 
   const rememberMeEnabled = input.rememberMe ?? settings.rememberMeDefault;
   const logoutEnabled = input.logoutAllDevices ?? settings.logoutAllDevicesDefault;
@@ -140,29 +188,26 @@ async function processAccount(
     timeout: 60000
   });
 
-  const userFound = await tryFillFirst(page, [
-    'input[type="email"]',
-    'input[name*="email" i]',
-    'input[name*="user" i]',
-    'input[id*="user" i]',
-    'input[type="text"]'
-  ], account.username);
+  const userFound = await tryFillFirst(
+    page,
+    mergeSelectorList(profile?.usernameSelectors, DEFAULT_USERNAME_SELECTORS),
+    account.username
+  );
 
-  const passwordFound = await tryFillFirst(page, [
-    'input[autocomplete="current-password"]',
-    'input[type="password"]'
-  ], account.password);
+  const passwordFound = await tryFillFirst(
+    page,
+    mergeSelectorList(profile?.passwordSelectors, DEFAULT_PASSWORD_SELECTORS),
+    account.password
+  );
 
   if (rememberMeEnabled) {
-    await tryCheckByLabel(page, [
-      /remember me/i,
-      /keep me signed in/i,
-      /stay signed in/i
-    ], true);
+    const rememberLabels = mergeSelectorList(profile?.rememberMeLabels, DEFAULT_REMEMBER_ME_LABELS);
+    await tryCheckByLabel(page, toRegexList(rememberLabels), true);
   }
 
   if (userFound || passwordFound) {
-    await tryClickButtons(page, toRegexList(["Sign in", "Log in", "Continue", "Next"]));
+    const loginLabels = mergeSelectorList(profile?.loginActionLabels, DEFAULT_LOGIN_LABELS);
+    await tryClickButtons(page, toRegexList(loginLabels));
   }
 
   await page.waitForTimeout(2000);
@@ -177,11 +222,8 @@ async function processAccount(
   }
 
   if (logoutEnabled) {
-    await tryClickButtons(page, [
-      /logout of all devices/i,
-      /log out all sessions/i,
-      /sign out everywhere/i
-    ]);
+    const logoutLabels = mergeSelectorList(profile?.logoutAllLabels, DEFAULT_LOGOUT_ALL_LABELS);
+    await tryClickButtons(page, toRegexList(logoutLabels));
   }
 
   if (!input.rotatePasswords) {
@@ -200,7 +242,7 @@ async function processAccount(
   });
 
   const generatedPassword = generateSecurePassword(mergedPolicy);
-  const changed = await attemptPasswordChange(page, account.password, generatedPassword);
+  const changed = await attemptPasswordChange(page, account.password, generatedPassword, profile);
 
   if (!changed) {
     return {
