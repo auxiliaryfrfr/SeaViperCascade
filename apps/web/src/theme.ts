@@ -2,14 +2,14 @@ import type { ThemeMode, ThemeVariables } from "./types";
 
 export const THEME_PRESETS: Record<Exclude<ThemeMode, "custom">, ThemeVariables> = {
   dark: {
-    background: "#020204",
-    backgroundElevated: "linear-gradient(150deg, #0a101a, #05070d)",
-    surface: "rgba(10, 14, 24, 0.92)",
-    border: "rgba(94, 127, 174, 0.42)",
-    textPrimary: "#f0f6ff",
-    textMuted: "#8ea4c2",
-    accent: "#1ce3b5",
-    accentAlt: "#4f9fff"
+    background: "#000000",
+    backgroundElevated: "linear-gradient(160deg, #0a0d12, #000000)",
+    surface: "rgba(9, 13, 20, 0.9)",
+    border: "rgba(108, 142, 186, 0.38)",
+    textPrimary: "#f2f7ff",
+    textMuted: "#93a9c4",
+    accent: "#6aa8ff",
+    accentAlt: "#00d3b1"
   },
   light: {
     background: "#eef2f4",
@@ -18,8 +18,8 @@ export const THEME_PRESETS: Record<Exclude<ThemeMode, "custom">, ThemeVariables>
     border: "rgba(40, 54, 64, 0.22)",
     textPrimary: "#10212d",
     textMuted: "#4f6678",
-    accent: "#136ad6",
-    accentAlt: "#00a78e"
+    accent: "#135fce",
+    accentAlt: "#008b77"
   },
   green: {
     background: "#071610",
@@ -28,8 +28,8 @@ export const THEME_PRESETS: Record<Exclude<ThemeMode, "custom">, ThemeVariables>
     border: "rgba(109, 196, 134, 0.35)",
     textPrimary: "#e9ffe5",
     textMuted: "#b2d3ba",
-    accent: "#69da4f",
-    accentAlt: "#2ecf8f"
+    accent: "#5fdd44",
+    accentAlt: "#21c985"
   },
   yellow: {
     background: "#191408",
@@ -38,8 +38,8 @@ export const THEME_PRESETS: Record<Exclude<ThemeMode, "custom">, ThemeVariables>
     border: "rgba(236, 194, 88, 0.35)",
     textPrimary: "#fff8de",
     textMuted: "#d4c79f",
-    accent: "#ffd045",
-    accentAlt: "#ff9f40"
+    accent: "#ffcc30",
+    accentAlt: "#ff9840"
   },
   pink: {
     background: "#1b0a17",
@@ -48,8 +48,8 @@ export const THEME_PRESETS: Record<Exclude<ThemeMode, "custom">, ThemeVariables>
     border: "rgba(236, 114, 199, 0.35)",
     textPrimary: "#ffe9f7",
     textMuted: "#d8a7c8",
-    accent: "#ff66b7",
-    accentAlt: "#ff9a57"
+    accent: "#ff5fb2",
+    accentAlt: "#ff8a56"
   }
 };
 

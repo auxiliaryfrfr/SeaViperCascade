@@ -967,8 +967,11 @@ function App(): JSX.Element {
               type="button"
               className="svc-button small"
               onClick={() => {
+                clearStatus();
+                setActiveTab("vault");
                 setActiveAccountId(null);
                 setDraft(emptyDraft(platforms[0]?.id));
+                setMessage("Ready to add a new account.");
               }}
             >
               + New
@@ -1152,80 +1155,96 @@ function App(): JSX.Element {
                   />
                 </label>
                 <div className="policy-grid">
-                  <label>
-                    Password length
+                  <label className="length-slider">
+                    <span>
+                      Password length <strong>{draft.passwordPolicy.length}</strong>
+                    </span>
                     <input
-                      type="number"
+                      type="range"
                       min={8}
                       max={128}
+                      step={1}
                       value={draft.passwordPolicy.length}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const nextLength = Math.max(8, Math.min(128, Number(event.target.value)));
                         setDraft((current) => ({
                           ...current,
                           passwordPolicy: {
                             ...current.passwordPolicy,
-                            length: Number(event.target.value)
+                            length: nextLength
                           }
-                        }))
-                      }
+                        }));
+                      }}
                     />
+                    <div className="length-slider-scale">
+                      <span>8</span>
+                      <span>128</span>
+                    </div>
                   </label>
-                  <LeverSwitch
-                    compact
-                    label="Uppercase"
-                    checked={draft.passwordPolicy.includeUppercase}
-                    onChange={(checked) =>
+                  <label className="policy-toggle">
+                    <input
+                      type="checkbox"
+                      checked={draft.passwordPolicy.includeUppercase}
+                      onChange={(event) =>
                       setDraft((current) => ({
                         ...current,
                         passwordPolicy: {
                           ...current.passwordPolicy,
-                          includeUppercase: checked
+                          includeUppercase: event.target.checked
                         }
                       }))
                     }
-                  />
-                  <LeverSwitch
-                    compact
-                    label="Lowercase"
-                    checked={draft.passwordPolicy.includeLowercase}
-                    onChange={(checked) =>
+                    />
+                    Uppercase
+                  </label>
+                  <label className="policy-toggle">
+                    <input
+                      type="checkbox"
+                      checked={draft.passwordPolicy.includeLowercase}
+                      onChange={(event) =>
                       setDraft((current) => ({
                         ...current,
                         passwordPolicy: {
                           ...current.passwordPolicy,
-                          includeLowercase: checked
+                          includeLowercase: event.target.checked
                         }
                       }))
                     }
-                  />
-                  <LeverSwitch
-                    compact
-                    label="Numbers"
-                    checked={draft.passwordPolicy.includeNumbers}
-                    onChange={(checked) =>
+                    />
+                    Lowercase
+                  </label>
+                  <label className="policy-toggle">
+                    <input
+                      type="checkbox"
+                      checked={draft.passwordPolicy.includeNumbers}
+                      onChange={(event) =>
                       setDraft((current) => ({
                         ...current,
                         passwordPolicy: {
                           ...current.passwordPolicy,
-                          includeNumbers: checked
+                          includeNumbers: event.target.checked
                         }
                       }))
                     }
-                  />
-                  <LeverSwitch
-                    compact
-                    label="Symbols"
-                    checked={draft.passwordPolicy.includeSymbols}
-                    onChange={(checked) =>
+                    />
+                    Numbers
+                  </label>
+                  <label className="policy-toggle">
+                    <input
+                      type="checkbox"
+                      checked={draft.passwordPolicy.includeSymbols}
+                      onChange={(event) =>
                       setDraft((current) => ({
                         ...current,
                         passwordPolicy: {
                           ...current.passwordPolicy,
-                          includeSymbols: checked
+                          includeSymbols: event.target.checked
                         }
                       }))
                     }
-                  />
+                    />
+                    Symbols
+                  </label>
                 </div>
 
                 <div className="action-row">
@@ -1334,7 +1353,7 @@ function App(): JSX.Element {
                     className="launch-cascade"
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.96 }}
-                    animate={{ boxShadow: ["0 0 0 rgba(0,0,0,0)", "0 0 28px rgba(0, 240, 162, 0.24)", "0 0 0 rgba(0,0,0,0)"] }}
+                    animate={{ boxShadow: ["0 0 0 rgba(0,0,0,0)", "0 0 24px var(--svc-accent)", "0 0 0 rgba(0,0,0,0)"] }}
                     transition={{ duration: 2.2, repeat: Number.POSITIVE_INFINITY }}
                     onClick={() => void handleRunAutomation(launchRotatePasswords)}
                     disabled={busy}
