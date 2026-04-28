@@ -15,8 +15,8 @@
     "lint": "npm run lint --workspace @svc/server && npm run lint --workspace @svc/web",
     "test": "npm run test --workspace @svc/server",
     "desktop:dev": "npm run dev --workspace @svc/desktop",
-    "desktop:build": "npm run build --workspace @svc/desktop",
-    "desktop:dist": "npm run dist --workspace @svc/desktop"
+    "desktop:build": "npm run build && npm run build --workspace @svc/desktop",
+    "desktop:dist": "npm run build && npm run dist --workspace @svc/desktop"
   },
   "devDependencies": {
     "concurrently": "^9.0.1"

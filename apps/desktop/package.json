@@ -11,6 +11,8 @@
     "dist": "electron-builder"
   },
   "dependencies": {
+    "@svc/server": "file:../server",
+    "@svc/web": "file:../web",
     "wait-on": "^8.0.1"
   },
   "devDependencies": {
