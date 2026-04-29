@@ -66,12 +66,4 @@ For an installer package:
 npm run desktop:dist
 ```
 
-## Notes
-- This project is entirely local and no cloud dependency is required.
-- The recovery code should be stored offline.
-- If you lose both master password and recovery code, vault decryption is not possible by design.
-- Desktop release can run unsigned by default; add signing secrets when you are ready to distribute trusted signed artifacts.
-- This project is not yet released and is not deemed ready for general use, as most of it's features are not yet working.
-- The project is publicly available strictly for developers who want to use this code or help with the project.
-
 > **Contributing:** Please read the [Contributing Guide](CONTRIBUTING.md) and our [Commit Convention](.github/COMMIT_CONVENTION.md) before opening a Pull Request.
