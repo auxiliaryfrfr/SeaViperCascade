@@ -3,6 +3,7 @@ import path from "node:path";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
+import rateLimit from "@fastify/rate-limit";
 import { z } from "zod";
 import { HOST, PORT, WEB_DEV_ORIGIN } from "./config";
 import { generateSecurePassword, normalizePasswordDefaults } from "./lib/password";
@@ -74,6 +75,11 @@ app.register(cors, {
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
+});
+
+app.register(rateLimit, {
+  max: 120,
+  timeWindow: "1 minute"
 });
 
 const webDistPath = path.resolve(__dirname, "../../web/dist");
