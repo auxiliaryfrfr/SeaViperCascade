@@ -142,36 +142,6 @@ For an installer package:
 npm run desktop:dist
 ```
 
-## Verified Commands
-
-- `npm install`
-- `npm run lint`
-- `npm run build`
-- `npm run test`
-
-All commands above pass in the current repository state.
-
-## Tests
-
-- Integration tests: `apps/server/tests/api.integration.test.ts`
-- Crypto invariants tests: `apps/server/tests/crypto.invariants.test.ts`
-
-Run with:
-
-```bash
-npm run test
-```
-
-## CI And Release
-
-- CI workflow (lint, build, tests): `.github/workflows/ci.yml`
-- Desktop release workflow: `.github/workflows/release-desktop.yml`
-
-Optional signing secrets for desktop release:
-
-- `CSC_LINK`
-- `CSC_KEY_PASSWORD`
-
 ## Important Operational Notes
 
 - This project is entirely local and no cloud dependency is required.
@@ -184,4 +154,4 @@ Optional signing secrets for desktop release:
 - Browser password managers do not expose direct local vault APIs to third-party apps, so CSV export/import is the supported interoperability path.
 - Desktop release can run unsigned by default; add signing secrets when you are ready to distribute trusted signed artifacts.
 
-> **Contributing:** Please read the [Commit Convention](.github/COMMIT_CONVENTION.md) before pushing changes.
+> **Contributing:** Please read the [Contributing Guide](CONTRIBUTING.md) and our [Commit Convention](.github/COMMIT_CONVENTION.md) before opening a Pull Request.
