@@ -153,5 +153,7 @@ npm run desktop:dist
 
 - Browser password managers do not expose direct local vault APIs to third-party apps, so CSV export/import is the supported interoperability path.
 - Desktop release can run unsigned by default; add signing secrets when you are ready to distribute trusted signed artifacts.
+- This project is not yet released and is not deemed ready for general use, as most of its' functionalities and features are not yet implemented correctly.
+- The project is publicly available strictly for developers who want to use this code or help with the project.
 
 > **Contributing:** Please read the [Contributing Guide](CONTRIBUTING.md) and our [Commit Convention](.github/COMMIT_CONVENTION.md) before opening a Pull Request.
