@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import { parse as parseCsv } from "csv-parse/sync";
 import { db } from "./database";
+import { CSV_IMPORT_MAX_ROWS } from "../config";
 import { decryptText, encryptText } from "../lib/crypto";
 import { normalizePasswordDefaults } from "../lib/password";
+import { normalizePublicWebUrl } from "../lib/urlSafety";
 import { createPlatform, listPlatforms } from "./platformService";
 import type { PasswordDefaults, SessionContext, VaultAccount } from "../types";
 
@@ -61,19 +63,18 @@ function pickColumnValue(row: Record<string, string>, candidateHeaders: string[]
 }
 
 function normalizeLoginUrl(rawUrl: string): string | null {
-  const trimmed = rawUrl.trim();
-  if (!trimmed) {
+  if (!rawUrl.trim()) {
     return null;
   }
 
   try {
-    return new URL(trimmed).toString();
+    return normalizePublicWebUrl(rawUrl, {
+      fieldName: "Login URL",
+      allowHttp: false,
+      prependHttps: true
+    });
   } catch {
-    try {
-      return new URL(`https://${trimmed}`).toString();
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
@@ -184,6 +185,7 @@ export function createVaultAccount(session: SessionContext, input: AccountInput)
   const id = crypto.randomUUID();
   const timestamp = nowIso();
   const policy = normalizePasswordDefaults(input.passwordPolicy);
+  const loginUrl = normalizePublicWebUrl(input.loginUrl, { fieldName: "Login URL", allowHttp: false });
 
   db.prepare(
     `INSERT INTO accounts
@@ -193,7 +195,7 @@ export function createVaultAccount(session: SessionContext, input: AccountInput)
     id,
     input.platformId,
     input.accountLabel.trim(),
-    input.loginUrl.trim(),
+    loginUrl,
     encryptText(input.username, session.dek),
     encryptText(input.password, session.dek),
     encryptText(input.notes ?? "", session.dek),
@@ -209,6 +211,7 @@ export function createVaultAccount(session: SessionContext, input: AccountInput)
 
 export function updateVaultAccount(session: SessionContext, id: string, input: AccountInput): VaultAccount {
   const policy = normalizePasswordDefaults(input.passwordPolicy);
+  const loginUrl = normalizePublicWebUrl(input.loginUrl, { fieldName: "Login URL", allowHttp: false });
 
   const result = db
     .prepare(
@@ -227,7 +230,7 @@ export function updateVaultAccount(session: SessionContext, id: string, input: A
     .run(
       input.platformId,
       input.accountLabel.trim(),
-      input.loginUrl.trim(),
+      loginUrl,
       encryptText(input.username, session.dek),
       encryptText(input.password, session.dek),
       encryptText(input.notes ?? "", session.dek),
@@ -311,6 +314,10 @@ export function importVaultAccountsFromBrowserCsv(
       autoCreatedPlatforms: 0,
       warnings: ["No rows were found in the CSV file."]
     };
+  }
+
+  if (rows.length > CSV_IMPORT_MAX_ROWS) {
+    throw new Error(`CSV import is limited to ${CSV_IMPORT_MAX_ROWS} rows per import.`);
   }
 
   const platformByHost = new Map<string, string>();

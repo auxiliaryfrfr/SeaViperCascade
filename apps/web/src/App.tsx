@@ -81,6 +81,10 @@ const defaultPolicy: PasswordDefaults = {
   includeSymbols: true
 };
 
+const MAX_CSV_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_LOGO_UPLOAD_BYTES = 512 * 1024;
+const MAX_THEME_UPLOAD_BYTES = 16 * 1024;
+
 function emptyDraft(platformId = ""): AccountDraft {
   return {
     id: null,
@@ -645,6 +649,11 @@ function App(): JSX.Element {
     }
 
     const file = event.target.files[0];
+    if (file.size > MAX_THEME_UPLOAD_BYTES) {
+      setError("Theme file is too large.");
+      return;
+    }
+
     const text = await file.text();
 
     try {
@@ -705,13 +714,30 @@ function App(): JSX.Element {
   }
 
   async function handleImportRecoveryKit(): Promise<void> {
+    if (!authToken) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Importing a recovery kit replaces the local vault snapshot and locks all active sessions. Continue?"
+    );
+    if (!confirmed) {
+      return;
+    }
+
     clearStatus();
     setBusy(true);
 
     try {
-      await importRecoveryKit(importBlob, importPassphrase);
+      await importRecoveryKit(authToken, importBlob, importPassphrase);
       const nextStatus = await getStatus();
       setStatus(nextStatus);
+      setAuthToken(null);
+      setRecoveryUnlocked(false);
+      setSettings(null);
+      setPlatforms([]);
+      setAccounts([]);
+      setAutomationJob(null);
       setMessage("Recovery import completed. Unlock the vault to continue.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Recovery import failed.");
@@ -726,6 +752,11 @@ function App(): JSX.Element {
     }
 
     const file = event.target.files[0];
+    if (file.size > MAX_LOGO_UPLOAD_BYTES) {
+      setError("Logo image is too large.");
+      return;
+    }
+
     const reader = new FileReader();
 
     reader.onload = () => {
@@ -743,6 +774,11 @@ function App(): JSX.Element {
     }
 
     const file = event.target.files[0];
+    if (file.size > MAX_CSV_UPLOAD_BYTES) {
+      setError("CSV file is too large.");
+      return;
+    }
+
     const text = await file.text();
     setCsvImportText(text);
     setCsvImportFileName(file.name);

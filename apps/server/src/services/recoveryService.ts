@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import PDFDocument from "pdfkit";
 import { RECOVERY_DIR } from "../config";
-import { createSalt, decryptBuffer, deriveKey, encryptBuffer, sha256Base64Url, wipeBuffer } from "../lib/crypto";
+import { createSalt, decryptBuffer, deriveKey, encryptBuffer, randomBase64Url, sha256Base64Url, wipeBuffer } from "../lib/crypto";
 import { db } from "./database";
 import type { RecoveryBlob } from "../types";
 
@@ -46,6 +46,10 @@ function takeSnapshot(): Snapshot {
 }
 
 function applySnapshot(snapshot: Snapshot): void {
+  if (!Array.isArray(snapshot.metadata) || !Array.isArray(snapshot.platforms) || !Array.isArray(snapshot.accounts)) {
+    throw new Error("Recovery snapshot is missing required sections.");
+  }
+
   const tx = db.transaction(() => {
     db.prepare("DELETE FROM accounts").run();
     db.prepare("DELETE FROM platforms").run();
@@ -191,10 +195,10 @@ export async function generateRecoveryKit(passphrase: string): Promise<RecoveryK
   const blob = await encryptSnapshot(snapshot, passphrase);
   const pdfBuffer = await renderPdf(blob);
 
-  const fileName = `svc-recovery-${Date.now()}.pdf`;
+  const fileName = `svc-recovery-${Date.now()}-${randomBase64Url(6)}.pdf`;
   const filePath = path.join(RECOVERY_DIR, fileName);
 
-  fs.writeFileSync(filePath, pdfBuffer);
+  fs.writeFileSync(filePath, pdfBuffer, { flag: "wx", mode: 0o600 });
 
   return {
     fileName,

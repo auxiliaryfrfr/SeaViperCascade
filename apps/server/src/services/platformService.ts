@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { db } from "./database";
 import { SEED_PLATFORMS } from "../lib/platformCatalog";
+import { normalizePublicWebUrl } from "../lib/urlSafety";
 import type { PlatformRecord } from "../types";
 
 interface PlatformInput {
@@ -16,12 +17,7 @@ function nowIso(): string {
 }
 
 function normalizeUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    return parsed.toString();
-  } catch {
-    throw new Error("Invalid URL. Please include protocol, e.g. https://example.com");
-  }
+  return normalizePublicWebUrl(url, { fieldName: "Platform URL", allowHttp: false });
 }
 
 function fallbackLogoUrl(baseUrl: string): string {

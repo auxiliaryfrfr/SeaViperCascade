@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { CANARY_TEXT } from "../config";
 import { createSalt, decryptBuffer, decryptText, deriveKey, encryptBuffer, encryptText, randomBase64Url, wipeBuffer } from "../lib/crypto";
 import { ensureSeedPlatforms } from "./platformService";
-import { createSession, revokeSession } from "./sessionStore";
+import { createSession, revokeAllSessions } from "./sessionStore";
 import { getMetadata, isVaultInitialized, setManyMetadata } from "./database";
 
 interface UnlockResponse {
@@ -169,5 +169,5 @@ export async function resetMasterFromRecovery(
     wipeBuffer(masterKey);
   }
 
-  revokeSession(sessionToken);
+  revokeAllSessions();
 }

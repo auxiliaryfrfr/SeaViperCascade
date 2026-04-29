@@ -230,12 +230,13 @@ export function createRecoveryKit(
   );
 }
 
-export function importRecoveryKit(armoredBlob: string, passphrase: string): Promise<{ success: boolean }> {
+export function importRecoveryKit(token: string, armoredBlob: string, passphrase: string): Promise<{ success: boolean }> {
   return request<{ success: boolean }>(
     "/api/recovery/import",
     {
       method: "POST",
-      body: JSON.stringify({ armoredBlob, passphrase })
-    }
+      body: JSON.stringify({ armoredBlob, passphrase, confirmRestore: true })
+    },
+    token
   );
 }

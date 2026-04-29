@@ -5,10 +5,20 @@ import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import rateLimit from "@fastify/rate-limit";
 import { z } from "zod";
-import { HOST, PORT, WEB_DEV_ORIGIN } from "./config";
+import {
+  CSV_TEXT_MAX_BYTES,
+  HOST,
+  LOGO_DATA_MAX_BYTES,
+  PORT,
+  RECOVERY_BLOB_MAX_BYTES,
+  THEME_VALUE_MAX_LENGTH,
+  TRUSTED_ORIGINS,
+  WEB_DEV_ORIGIN
+} from "./config";
 import { generateSecurePassword, normalizePasswordDefaults } from "./lib/password";
+import { normalizePublicWebUrl } from "./lib/urlSafety";
 import { getLanAddresses } from "./lib/network";
-import { getSession, revokeSession } from "./services/sessionStore";
+import { getSession, revokeAllSessions, revokeSession } from "./services/sessionStore";
 import {
   bootstrapVault,
   getVaultState,
@@ -63,15 +73,84 @@ function requireSession(request: FastifyRequest): SessionContext {
   return session;
 }
 
-const app = Fastify({ logger: false });
+function requireFullSession(request: FastifyRequest): SessionContext {
+  const session = requireSession(request);
+  if (session.mobile) {
+    throw new ApiError(403, "This operation requires a full desktop session.");
+  }
+
+  return session;
+}
+
+function trustedOrigins(): Set<string> {
+  return new Set([
+    WEB_DEV_ORIGIN,
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`,
+    ...TRUSTED_ORIGINS
+  ]);
+}
+
+const idSchema = z.string().min(1).max(80);
+const safeWebUrlSchema = (fieldName: string) =>
+  z
+    .string()
+    .min(8)
+    .max(2048)
+    .transform((url, context) => {
+      try {
+        return normalizePublicWebUrl(url, { fieldName, allowHttp: false });
+      } catch (error) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error instanceof Error ? error.message : `${fieldName} is not allowed.`
+        });
+        return z.NEVER;
+      }
+    });
+const optionalLogoUrlSchema = z
+  .string()
+  .min(8)
+  .max(2048)
+  .transform((url, context) => {
+    try {
+      return normalizePublicWebUrl(url, { fieldName: "Logo URL", allowHttp: false });
+    } catch (error) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error instanceof Error ? error.message : "Logo URL is not allowed."
+      });
+      return z.NEVER;
+    }
+  })
+  .nullable()
+  .optional();
+const logoDataSchema = z
+  .string()
+  .max(LOGO_DATA_MAX_BYTES)
+  .refine((value) => value.startsWith("data:image/"), "Logo upload must be an image data URL.")
+  .nullable()
+  .optional();
+const themeValueSchema = z
+  .string()
+  .min(1)
+  .max(THEME_VALUE_MAX_LENGTH)
+  .refine((value) => !/(url\s*\(|@import|expression\s*\(|;)/i.test(value), "Theme value is not allowed.");
+
+const app = Fastify({ logger: false, bodyLimit: RECOVERY_BLOB_MAX_BYTES + 1024 });
 
 app.addHook("onClose", async () => {
   closeDatabase();
 });
 
 app.register(cors, {
-  origin: (_origin, callback) => {
-    callback(null, true);
+  origin: (origin, callback) => {
+    if (!origin || trustedOrigins().has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("Origin is not allowed by CORS."), false);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
@@ -80,6 +159,29 @@ app.register(cors, {
 app.register(rateLimit, {
   max: 120,
   timeWindow: "1 minute"
+});
+
+app.addHook("onSend", async (_request, reply, payload) => {
+  reply.header("X-Content-Type-Options", "nosniff");
+  reply.header("X-Frame-Options", "DENY");
+  reply.header("Referrer-Policy", "no-referrer");
+  reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  reply.header(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self'",
+      "connect-src 'self' http://localhost:* http://127.0.0.1:*",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'"
+    ].join("; ")
+  );
+
+  return payload;
 });
 
 const webDistPath = path.resolve(__dirname, "../../web/dist");
@@ -103,8 +205,8 @@ app.setErrorHandler((error, _request, reply) => {
     return;
   }
 
-  const message = error instanceof Error ? error.message : "Internal server error";
-  reply.code(500).send({ error: message || "Internal server error" });
+  console.error("Unhandled API error:", error);
+  reply.code(500).send({ error: "Internal server error" });
 });
 
 app.get("/api/status", async () => {
@@ -180,25 +282,25 @@ app.post("/api/auth/lock", async (request) => {
 });
 
 app.get("/api/settings", async (request) => {
-  requireSession(request);
+  requireFullSession(request);
   return readSettings();
 });
 
 app.put("/api/settings", async (request) => {
-  requireSession(request);
+  requireFullSession(request);
   const body = z
     .object({
       themeMode: z.enum(["dark", "light", "green", "yellow", "pink", "custom"]).optional(),
       customTheme: z
         .object({
-          background: z.string(),
-          backgroundElevated: z.string(),
-          surface: z.string(),
-          border: z.string(),
-          textPrimary: z.string(),
-          textMuted: z.string(),
-          accent: z.string(),
-          accentAlt: z.string()
+          background: themeValueSchema,
+          backgroundElevated: themeValueSchema,
+          surface: themeValueSchema,
+          border: themeValueSchema,
+          textPrimary: themeValueSchema,
+          textMuted: themeValueSchema,
+          accent: themeValueSchema,
+          accentAlt: themeValueSchema
         })
         .nullable()
         .optional(),
@@ -220,7 +322,7 @@ app.put("/api/settings", async (request) => {
 });
 
 app.post("/api/password/generate", async (request) => {
-  requireSession(request);
+  requireFullSession(request);
   const body = z
     .object({
       length: z.number().int().min(8).max(128).optional(),
@@ -237,19 +339,19 @@ app.post("/api/password/generate", async (request) => {
 });
 
 app.get("/api/platforms", async (request) => {
-  requireSession(request);
+  requireFullSession(request);
   return listPlatforms();
 });
 
 app.post("/api/platforms", async (request) => {
-  requireSession(request);
+  requireFullSession(request);
   const body = z
     .object({
       name: z.string().min(2),
-      baseUrl: z.string().url(),
+      baseUrl: safeWebUrlSchema("Platform URL"),
       tag: z.string().min(2),
-      logoUrl: z.string().url().nullable().optional(),
-      logoData: z.string().nullable().optional()
+      logoUrl: optionalLogoUrlSchema,
+      logoData: logoDataSchema
     })
     .parse(request.body);
 
@@ -257,15 +359,15 @@ app.post("/api/platforms", async (request) => {
 });
 
 app.put("/api/platforms/:id", async (request) => {
-  requireSession(request);
-  const params = z.object({ id: z.string().min(1) }).parse(request.params);
+  requireFullSession(request);
+  const params = z.object({ id: idSchema }).parse(request.params);
   const body = z
     .object({
       name: z.string().min(2),
-      baseUrl: z.string().url(),
+      baseUrl: safeWebUrlSchema("Platform URL"),
       tag: z.string().min(2),
-      logoUrl: z.string().url().nullable().optional(),
-      logoData: z.string().nullable().optional()
+      logoUrl: optionalLogoUrlSchema,
+      logoData: logoDataSchema
     })
     .parse(request.body);
 
@@ -273,8 +375,8 @@ app.put("/api/platforms/:id", async (request) => {
 });
 
 app.delete("/api/platforms/:id", async (request) => {
-  requireSession(request);
-  const params = z.object({ id: z.string().min(1) }).parse(request.params);
+  requireFullSession(request);
+  const params = z.object({ id: idSchema }).parse(request.params);
   removePlatform(params.id);
   return { success: true };
 });
@@ -285,16 +387,16 @@ app.get("/api/accounts", async (request) => {
 });
 
 app.post("/api/accounts", async (request) => {
-  const session = requireSession(request);
+  const session = requireFullSession(request);
   const body = z
     .object({
       platformId: z.string().min(1),
-      accountLabel: z.string().min(1),
-      loginUrl: z.string().url(),
-      username: z.string().min(1),
-      password: z.string().min(1),
-      notes: z.string().optional(),
-      tags: z.array(z.string()).optional(),
+      accountLabel: z.string().min(1).max(200),
+      loginUrl: safeWebUrlSchema("Login URL"),
+      username: z.string().min(1).max(1024),
+      password: z.string().min(1).max(4096),
+      notes: z.string().max(10000).optional(),
+      tags: z.array(z.string().min(1).max(80)).max(50).optional(),
       passwordPolicy: z
         .object({
           length: z.number().int().min(8).max(128).optional(),
@@ -311,11 +413,12 @@ app.post("/api/accounts", async (request) => {
 });
 
 app.post("/api/accounts/import-csv", async (request) => {
-  const session = requireSession(request);
+  const session = requireFullSession(request);
 
   const body = z
     .object({
       csvText: z.string().min(10)
+        .max(CSV_TEXT_MAX_BYTES)
     })
     .parse(request.body);
 
@@ -323,17 +426,17 @@ app.post("/api/accounts/import-csv", async (request) => {
 });
 
 app.put("/api/accounts/:id", async (request) => {
-  const session = requireSession(request);
-  const params = z.object({ id: z.string().min(1) }).parse(request.params);
+  const session = requireFullSession(request);
+  const params = z.object({ id: idSchema }).parse(request.params);
   const body = z
     .object({
       platformId: z.string().min(1),
-      accountLabel: z.string().min(1),
-      loginUrl: z.string().url(),
-      username: z.string().min(1),
-      password: z.string().min(1),
-      notes: z.string().optional(),
-      tags: z.array(z.string()).optional(),
+      accountLabel: z.string().min(1).max(200),
+      loginUrl: safeWebUrlSchema("Login URL"),
+      username: z.string().min(1).max(1024),
+      password: z.string().min(1).max(4096),
+      notes: z.string().max(10000).optional(),
+      tags: z.array(z.string().min(1).max(80)).max(50).optional(),
       passwordPolicy: z
         .object({
           length: z.number().int().min(8).max(128).optional(),
@@ -350,14 +453,14 @@ app.put("/api/accounts/:id", async (request) => {
 });
 
 app.delete("/api/accounts/:id", async (request) => {
-  requireSession(request);
-  const params = z.object({ id: z.string().min(1) }).parse(request.params);
+  requireFullSession(request);
+  const params = z.object({ id: idSchema }).parse(request.params);
   removeVaultAccount(params.id);
   return { success: true };
 });
 
 app.post("/api/automation/jobs", async (request) => {
-  const session = requireSession(request);
+  const session = requireFullSession(request);
   const body = z
     .object({
       accountIds: z.array(z.string()).optional(),
@@ -380,13 +483,13 @@ app.post("/api/automation/jobs", async (request) => {
 });
 
 app.get("/api/automation/jobs/:id", async (request) => {
-  requireSession(request);
-  const params = z.object({ id: z.string().min(1) }).parse(request.params);
-  return getAutomationJob(params.id);
+  const session = requireFullSession(request);
+  const params = z.object({ id: idSchema }).parse(request.params);
+  return getAutomationJob(session, params.id);
 });
 
 app.post("/api/mobile/token", async (request) => {
-  const session = requireSession(request);
+  const session = requireFullSession(request);
   const body = z
     .object({
       frontendPort: z.number().int().min(1).max(65535).optional()
@@ -424,7 +527,7 @@ app.post("/api/mobile/consume", async (request) => {
 });
 
 app.post("/api/recovery/kit", async (request) => {
-  requireSession(request);
+  requireFullSession(request);
 
   const body = z
     .object({
@@ -443,15 +546,18 @@ app.post("/api/recovery/kit", async (request) => {
 });
 
 app.post("/api/recovery/import", async (request) => {
+  requireFullSession(request);
   const body = z
     .object({
-      armoredBlob: z.string().min(100),
-      passphrase: z.string().min(12)
+      armoredBlob: z.string().min(100).max(RECOVERY_BLOB_MAX_BYTES),
+      passphrase: z.string().min(12),
+      confirmRestore: z.literal(true)
     })
     .parse(request.body);
 
   await restoreFromRecoveryBlob(body.armoredBlob, body.passphrase);
   ensureSeedPlatforms();
+  revokeAllSessions();
 
   return {
     success: true,

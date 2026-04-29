@@ -1,5 +1,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { AUTOMATION_JOB_TTL_MS } from "../config";
 import { generateSecurePassword, normalizePasswordDefaults } from "../lib/password";
+import { normalizePublicWebUrl } from "../lib/urlSafety";
 import type { AutomationJob, PasswordDefaults, SessionContext } from "../types";
 import { getVaultAccount, listVaultAccounts, setVaultPassword } from "./accountService";
 import { resolveAutomationProfile, type AutomationProfile } from "../automation/profiles";
@@ -14,7 +16,12 @@ interface StartAutomationInput {
   rememberMe?: boolean;
 }
 
-const jobs = new Map<string, AutomationJob>();
+interface StoredAutomationJob extends AutomationJob {
+  ownerToken: string;
+  expiresAt: number;
+}
+
+const jobs = new Map<string, StoredAutomationJob>();
 
 const DEFAULT_USERNAME_SELECTORS = [
   'input[type="email"]',
@@ -183,7 +190,12 @@ async function processAccount(
   const rememberMeEnabled = input.rememberMe ?? settings.rememberMeDefault;
   const logoutEnabled = input.logoutAllDevices ?? settings.logoutAllDevicesDefault;
 
-  await page.goto(account.loginUrl || platform?.baseUrl || "about:blank", {
+  const targetUrl = normalizePublicWebUrl(account.loginUrl || platform?.baseUrl || "", {
+    fieldName: "Automation target URL",
+    allowHttp: false
+  });
+
+  await page.goto(targetUrl, {
     waitUntil: "domcontentloaded",
     timeout: 60000
   });
@@ -303,6 +315,7 @@ async function runJob(jobId: string, session: SessionContext, input: StartAutoma
   if (selected.length === 0) {
     job.status = "completed";
     job.progress = 100;
+    job.expiresAt = Date.now() + AUTOMATION_JOB_TTL_MS;
     job.updatedAt = Date.now();
     return;
   }
@@ -340,10 +353,12 @@ async function runJob(jobId: string, session: SessionContext, input: StartAutoma
     }
 
     job.status = "completed";
+    job.expiresAt = Date.now() + AUTOMATION_JOB_TTL_MS;
     job.updatedAt = Date.now();
   } catch (error) {
     job.status = "failed";
     job.error = error instanceof Error ? error.message : "Automation engine failed";
+    job.expiresAt = Date.now() + AUTOMATION_JOB_TTL_MS;
     job.updatedAt = Date.now();
   } finally {
     const manualPages = job.results.filter((item) => item.status === "manual_required").length;
@@ -367,10 +382,13 @@ async function runJob(jobId: string, session: SessionContext, input: StartAutoma
 
 export function startAutomationJob(session: SessionContext, input: StartAutomationInput): AutomationJob {
   const id = crypto.randomUUID();
-  const job: AutomationJob = {
+  cleanupExpiredJobs();
+  const job: StoredAutomationJob = {
     id,
+    ownerToken: session.token,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    expiresAt: Date.now() + AUTOMATION_JOB_TTL_MS,
     status: "queued",
     progress: 0,
     total: 0,
@@ -382,9 +400,22 @@ export function startAutomationJob(session: SessionContext, input: StartAutomati
   return job;
 }
 
-export function getAutomationJob(jobId: string): AutomationJob {
+function cleanupExpiredJobs(): void {
+  const now = Date.now();
+  for (const [id, job] of jobs.entries()) {
+    if (job.expiresAt <= now) {
+      jobs.delete(id);
+    }
+  }
+}
+
+export function getAutomationJob(session: SessionContext, jobId: string): AutomationJob {
+  cleanupExpiredJobs();
   const job = jobs.get(jobId);
   if (!job) {
+    throw new Error("Automation job not found.");
+  }
+  if (job.ownerToken !== session.token) {
     throw new Error("Automation job not found.");
   }
 
