@@ -6,7 +6,7 @@ Currently, only the latest release of SVC is actively supported with security up
 | Version | Supported          |
 | ------- | ------------------ |
 | 1.x.x   | :white_check_mark: |
-| < 1.0.0 | :x:                |
+| < 1.0.1 | :x:                |
 
 
 ## Reporting a Vulnerability

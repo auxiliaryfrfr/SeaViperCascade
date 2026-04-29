@@ -1,6 +1,6 @@
 {
   "name": "seavipercascade",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "SVC - SeaViperCascade local password manager and automation engine",
   "workspaces": [
