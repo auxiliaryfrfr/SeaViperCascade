@@ -2,6 +2,17 @@
 
 A local password manager and password-changer automation tool.
 
+## Warning
+
+SVC is currently in active beta development and is NOT recommended for general or production use.
+
+Core features, security, and functionality are still being actively tested and refined.  
+This repository is publicly available primarily for development, contributor collaboration, and code transparency.
+
+Do not rely on this application for critical credential storage until a stable public release is announced.
+
+Use at your own risk.
+
 ## Specifics
 
 - Local encrypted vault SQLite database with AES-256-GCM encryption.
